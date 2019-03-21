@@ -1,15 +1,12 @@
 import cv2
 import os
-
+import matplotlib.pyplot as plt
 import numpy as np
 import config
-frameOutputPath = 'frames'
 
 
-if not os.path.isdir(frameOutputPath):
-    os.makedirs(frameOutputPath)
-
-
+def displayImage(img_arr):
+    plt.imshow(img_arr)
 
 
 
