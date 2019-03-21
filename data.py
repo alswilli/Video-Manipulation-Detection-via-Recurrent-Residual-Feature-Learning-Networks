@@ -6,7 +6,7 @@ import cv2
 import glob
 import csv
 from tqdm import tqdm
-from keras.utils import to_categorical
+from keras.utils import to_categorical, Sequence
 import h5py
 
 class DataSet():
@@ -70,8 +70,8 @@ class DataSet():
         x, y = [], []
         for row in csv_data:
             frames = self.get_frames_for_sample(row)
-            sequence = self.build_image_sequence(frames)[:self.min_seq_length]
-            
+            # sequence = self.build_image_sequence(frames)[:self.min_seq_length]
+            sequence = self.build_image_sequence(frames)
             
             vidClass = row[1]
             if vidClass == 'class2':
@@ -103,49 +103,65 @@ class DataSet():
         return [self.process_image(x) for x in frames]
 
 
-    def create_h5_dataset(self, trainTest):
-        h5path = os.path.join('data', 'data1.h5')
-        
+    def dumpNumpyFiles(self, trainTest):
+
+        outPath = os.path.join(self.sequence_path, 'npz', trainTest)
+        os.makedirs(outPath, exist_ok=True)
 
         train, test = self.split_train_test()
         csv_data = train if trainTest == 'train' else test
-        x, y = [], []
-        # print(len(csv_data))
-        with h5py.File(h5path, 'w') as h5_dataset:
-       
-            hdf5_sequences = h5_dataset.create_dataset(name='x_train', 
-                                                    shape=(len(csv_data),), 
-                                                    maxshape=(None), 
-                                                    dtype=h5py.special_dtype(vlen=np.float32))
-            hdf5_labels = h5_dataset.create_dataset(name='y_train', 
-                                                    shape=(len(csv_data),), 
-                                                    maxshape=(None), 
-                                                    dtype=h5py.special_dtype(vlen=np.int32))
 
-            for i in tqdm(range(0, len(csv_data))):
-                row = csv_data[i]
-                frames = self.get_frames_for_sample(row)
-                sequence = self.build_image_sequence(frames)
-                
-                
-                vidClass = row[1]
-                if vidClass == 'class2':
-                    aug_len = 10
-                    start = np.random.randint(len(sequence)-aug_len)
-                    for k in range(start, start+aug_len):
-                        sequence[i]=np.zeros(sequence[i].shape)
-                
-                # x.append(np.array(sequence))
-                # y.append(self.one_hot(row[1]))
-                # print(i)
-                hdf5_sequences[i] = np.array(sequence)
-                hdf5_labels[i] = self.one_hot(row[1])
+        x, y = [], []
+        for k in tqdm(range(len(csv_data))):
+            row = csv_data[k]
+            frames = self.get_frames_for_sample(row)
+            sequence = self.build_image_sequence(frames)[:self.min_seq_length]
+            # sequence = self.build_image_sequence(frames)
+            
+            vidClass = row[1]
+            if vidClass == 'class2':
+                aug_len = 10
+                start = np.random.randint(len(sequence)-aug_len)
+                for i in range(start, start+aug_len):
+                    sequence[i]=np.zeros(sequence[i].shape)
             
 
+            # x.append(np.array(sequence))
+            # y.append(self.one_hot(row[1]))
+            vidName = row[2]
+            np.savez_compressed(os.path.join(outPath, vidName +'.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
+        
+        
+class DataGenerator(Sequence):
+    def __init__(self, trainTest='train', batch_size=1):
+        self.trainTest = trainTest
+        self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.trainTest, '*.npz'))
+        self.data_length = len(self.files)
+        self.batch_size = batch_size
+        self.batch_num = 0
+
+        self.on_epoch_end()
+    
+    def __len__(self):
+        return int(np.floor(self.data_length / self.batch_size))
+
+    def __getitem__(self, index):
+        x, y = [], []
+
+        batch_files = self.files[self.batch_num*self.batch_size:(self.batch_num+1)*self.batch_size]
+
+        for f in batch_files:
+            sequence = np.load(f)
+            x.append(sequence['x'])
+            y.append(sequence['y'])
+
+        self.batch_num += 1
+
         return np.array(x), np.array(y)
-
-
-
+    
+    def on_epoch_end(self):
+        np.random.shuffle(self.files)
+        self.batch_num = 0
    
 
 class Preprocessing():
