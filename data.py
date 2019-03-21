@@ -8,7 +8,7 @@ import csv
 from tqdm import tqdm
 from keras.utils import to_categorical, Sequence
 import h5py
-
+import time
 class DataSet():
 
     def __init__(self):
@@ -21,10 +21,13 @@ class DataSet():
         self.csv_data = self.clean_data()
         
     def get_csv_data(self):
-        with open(os.path.join('data', 'data_file.csv'), 'r') as fin:
-            reader = csv.reader(fin)
-            data = list(reader)
-        return data 
+        try:
+            with open(os.path.join('data', 'data_file.csv'), 'r') as fin:
+                reader = csv.reader(fin)
+                data = list(reader)
+            return data 
+        except IOError:
+            print('CSV Data File does not exist. Please run Preprocessing.extractAllVideos().')
 
     def get_classes(self):
         classes = []
@@ -63,7 +66,10 @@ class DataSet():
         images = sorted(glob.glob(os.path.join(path, filename+'*.jpg')))
         return images
 
-    def all_data(self, trainTest):
+    def all_data(self, trainTest, seq_len_limit=None):
+        """
+        Load all data into memory
+        """
         train, test = self.split_train_test()
         csv_data = train if trainTest == 'train' else test
 
@@ -72,6 +78,8 @@ class DataSet():
             frames = self.get_frames_for_sample(row)
             # sequence = self.build_image_sequence(frames)[:self.min_seq_length]
             sequence = self.build_image_sequence(frames)
+            if seq_len_limit:
+                sequence = sequence[:seq_len_limit]
             
             vidClass = row[1]
             if vidClass == 'class2':
@@ -103,7 +111,7 @@ class DataSet():
         return [self.process_image(x) for x in frames]
 
 
-    def dumpNumpyFiles(self, trainTest):
+    def dumpNumpyFiles(self, trainTest, seq_len_limit=None):
 
         outPath = os.path.join(self.sequence_path, 'npz', trainTest)
         os.makedirs(outPath, exist_ok=True)
@@ -115,8 +123,10 @@ class DataSet():
         for k in tqdm(range(len(csv_data))):
             row = csv_data[k]
             frames = self.get_frames_for_sample(row)
-            sequence = self.build_image_sequence(frames)[:self.min_seq_length]
-            # sequence = self.build_image_sequence(frames)
+            sequence = self.build_image_sequence(frames)
+            if seq_len_limit:
+                sequence = sequence[seq_len_limit]
+            
             
             vidClass = row[1]
             if vidClass == 'class2':
@@ -124,10 +134,7 @@ class DataSet():
                 start = np.random.randint(len(sequence)-aug_len)
                 for i in range(start, start+aug_len):
                     sequence[i]=np.zeros(sequence[i].shape)
-            
 
-            # x.append(np.array(sequence))
-            # y.append(self.one_hot(row[1]))
             vidName = row[2]
             np.savez_compressed(os.path.join(outPath, vidName +'.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
         
@@ -156,7 +163,7 @@ class DataGenerator(Sequence):
             y.append(sequence['y'])
 
         self.batch_num += 1
-
+        # time.sleep(2)
         return np.array(x), np.array(y)
     
     def on_epoch_end(self):
@@ -166,7 +173,7 @@ class DataGenerator(Sequence):
 
 class Preprocessing():
     def __init__(self):
-        self.video_path = os.path.join('data', 'videos')
+        self.videos_path = os.path.join('data', 'videos')
         self.sequence_path = os.path.join('data', 'sequences')
         
         os.makedirs(os.path.join(self.sequence_path, 'train'), exist_ok=True)
@@ -174,10 +181,15 @@ class Preprocessing():
 
     
     def extractAllVideos(self):
+        """
+        Extracts all videos in 'train' and 'test' folders into frames (location: data/sequences).
+
+        Also generates a csv file with: train/test,class_label, videofilename, # frames in sequence
+        """
         data_file = []
         folders = ['train', 'test']
         for folder in folders:
-            class_folders = glob.glob(os.path.join(self.video_path, folder, '*'))
+            class_folders = glob.glob(os.path.join(self.videos_path, folder, '*'))
             
             for vid_class in class_folders:
                 class_files = glob.glob(os.path.join(vid_class, '*.avi'))
@@ -195,9 +207,6 @@ class Preprocessing():
 
     def extractFrames(self, video_path):
         trainTest, vidClass, vidName, filename = self.video_parts(video_path)
-        # vidName = os.path.basename(os.path.normpath(video_path)).split('.')[0]
-        # vidClass = video_path.split(os.sep)[-2]
-        # trainTest = video_path.split(os.sep)[-3]
         outPath = os.path.join(self.sequence_path, trainTest, vidClass)
         
         if not os.path.isdir(outPath): os.makedirs(outPath)
@@ -208,7 +217,6 @@ class Preprocessing():
         while success:
             cv2.imwrite(os.path.join(outPath,  vidName + "-%04d.jpg" % count), image)     # save frame as JPEG file      
             success,image = vidcap.read()
-            # print('Read a new frame: ', success)
             count += 1
         count-=1
         return count
