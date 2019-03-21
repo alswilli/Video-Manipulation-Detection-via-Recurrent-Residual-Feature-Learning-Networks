@@ -92,24 +92,22 @@ class DataSet():
             
             vidClass = row[1]
             #make random frames black
-            if vidClass == 'class2':
-                compress = iaa.JpegCompression(compression=(80, 100))
-
-                aug_len = 10
-                # start = np.random.randint(len(sequence)-aug_len)
-                start = 0
+            aug_len = 10
+            start = np.random.randint(len(sequence)-aug_len)
+            if vidClass == 'black':
                 for i in range(start, start+aug_len):
                     #make black
-                    # sequence[i]=np.zeros(sequence[i].shape)
+                    sequence[i]=np.zeros(sequence[i].shape)
+            
+            if vidClass == 'compressed':
+                compress = iaa.JpegCompression(compression=(80, 100))
+                for i in range(start, start+aug_len):
                     sequence[i] = sequence[i]*255.
                     sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
                     sequence[i] = (sequence[i] / 255.).astype(np.float32)
-                    # break
-                    # sequence[i] /= 255.
 
 
-            
-            
+
             x.append(np.array(sequence))
             y.append(self.one_hot(vidClass))
         
