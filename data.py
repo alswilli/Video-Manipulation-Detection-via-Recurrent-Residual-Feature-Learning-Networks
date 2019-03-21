@@ -242,7 +242,7 @@ class Preprocessing():
                     n_frames = self.extractFrames(video_path)
                     data_file.append([trainTest, vidClass, vidName, n_frames])
         
-        with open(os.path.join('data', 'data_file.csv'), 'w') as fout:
+        with open(os.path.join('data', 'data_file.csv'), 'w', newline='') as fout:
             writer = csv.writer(fout)
             writer.writerows(data_file)
 
