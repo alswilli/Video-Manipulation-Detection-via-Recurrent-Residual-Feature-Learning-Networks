@@ -10,6 +10,8 @@ from keras.utils import to_categorical, Sequence
 import h5py
 import time
 import shutil
+import sys
+from imgaug import augmenters as iaa
 
 class DataSet():
 
@@ -30,6 +32,7 @@ class DataSet():
             return data 
         except IOError:
             print('CSV Data File does not exist. Please run Preprocessing.extractAllVideos().')
+            sys.exit()
 
     def get_classes(self):
         classes = []
@@ -52,6 +55,9 @@ class DataSet():
         label_hot = to_categorical(label_encoded, len(self.classes))
         return label_hot
 
+    def reverse_one_hot(self, one_hot):
+        return self.classes[np.argmax(one_hot)]
+
     def split_train_test(self):
         train = []
         test = []
@@ -70,7 +76,9 @@ class DataSet():
 
     def all_data(self, trainTest, seq_len_limit=None):
         """
-        Load all data into memory
+        Load all data into memory.
+
+        NOTE: Currently turns a random 10 frames in class2 samples to all black. 
         """
         train, test = self.split_train_test()
         csv_data = train if trainTest == 'train' else test
@@ -78,20 +86,32 @@ class DataSet():
         x, y = [], []
         for row in csv_data:
             frames = self.get_frames_for_sample(row)
-            # sequence = self.build_image_sequence(frames)[:self.min_seq_length]
             sequence = self.build_image_sequence(frames)
             if seq_len_limit:
                 sequence = sequence[:seq_len_limit]
             
             vidClass = row[1]
+            #make random frames black
             if vidClass == 'class2':
+                compress = iaa.JpegCompression(compression=(80, 100))
+
                 aug_len = 10
-                start = np.random.randint(len(sequence)-aug_len)
+                # start = np.random.randint(len(sequence)-aug_len)
+                start = 0
                 for i in range(start, start+aug_len):
-                    sequence[i]=np.zeros(sequence[i].shape)
+                    #make black
+                    # sequence[i]=np.zeros(sequence[i].shape)
+                    sequence[i] = sequence[i]*255.
+                    sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
+                    sequence[i] = (sequence[i] / 255.).astype(np.float32)
+                    # break
+                    # sequence[i] /= 255.
+
+
+            
             
             x.append(np.array(sequence))
-            y.append(self.one_hot(row[1]))
+            y.append(self.one_hot(vidClass))
         
         return np.array(x), np.array(y)
 
@@ -118,11 +138,13 @@ class DataSet():
         Exports sequences to .npz files in data/sequences/npz. 
         
         DataGenerator uses these files to compute batches. 
+
+        NOTE: Currently turns a random 10 frames in class2 samples to all black. 
         """
         outPath = os.path.join(self.sequence_path, 'npz', trainTest)
         if os.path.isdir(outPath):
             shutil.rmtree(outPath)
-            
+
         os.makedirs(outPath, exist_ok=True)
 
         train, test = self.split_train_test()
@@ -149,12 +171,13 @@ class DataSet():
         
         
 class DataGenerator(Sequence):
-    def __init__(self, trainTest='train', batch_size=1):
+    def __init__(self, trainTest='train', batch_size=1, shuffle=True):
         self.trainTest = trainTest
         self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.trainTest, '*.npz'))
         self.data_length = len(self.files)
         self.batch_size = batch_size
         self.batch_num = 0
+        self.shuffle = shuffle
 
         self.on_epoch_end()
     
@@ -176,7 +199,8 @@ class DataGenerator(Sequence):
         return np.array(x), np.array(y)
     
     def on_epoch_end(self):
-        np.random.shuffle(self.files)
+        if self.shuffle:
+            np.random.shuffle(self.files)
         self.batch_num = 0
    
 
@@ -184,9 +208,6 @@ class Preprocessing():
     def __init__(self):
         self.videos_path = os.path.join('data', 'videos')
         self.sequence_path = os.path.join('data', 'sequences')
-        
-        # os.makedirs(os.path.join(self.sequence_path, 'train'), exist_ok=True)
-        # os.makedirs(os.path.join(self.sequence_path, 'test'), exist_ok=True)
 
     
     def extractAllVideos(self):
