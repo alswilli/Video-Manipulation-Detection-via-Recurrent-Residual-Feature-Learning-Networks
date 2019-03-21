@@ -9,6 +9,8 @@ from tqdm import tqdm
 from keras.utils import to_categorical, Sequence
 import h5py
 import time
+import shutil
+
 class DataSet():
 
     def __init__(self):
@@ -112,8 +114,15 @@ class DataSet():
 
 
     def dumpNumpyFiles(self, trainTest, seq_len_limit=None):
-
+        """
+        Exports sequences to .npz files in data/sequences/npz. 
+        
+        DataGenerator uses these files to compute batches. 
+        """
         outPath = os.path.join(self.sequence_path, 'npz', trainTest)
+        if os.path.isdir(outPath):
+            shutil.rmtree(outPath)
+            
         os.makedirs(outPath, exist_ok=True)
 
         train, test = self.split_train_test()
@@ -176,8 +185,8 @@ class Preprocessing():
         self.videos_path = os.path.join('data', 'videos')
         self.sequence_path = os.path.join('data', 'sequences')
         
-        os.makedirs(os.path.join(self.sequence_path, 'train'), exist_ok=True)
-        os.makedirs(os.path.join(self.sequence_path, 'test'), exist_ok=True)
+        # os.makedirs(os.path.join(self.sequence_path, 'train'), exist_ok=True)
+        # os.makedirs(os.path.join(self.sequence_path, 'test'), exist_ok=True)
 
     
     def extractAllVideos(self):
@@ -186,6 +195,19 @@ class Preprocessing():
 
         Also generates a csv file with: train/test,class_label, videofilename, # frames in sequence
         """
+
+        #Delete old files if they exist. 
+        trainOut = os.path.join(self.sequence_path, 'train')
+        testOut = os.path.join(self.sequence_path, 'test')
+        if os.path.isdir(trainOut):
+            shutil.rmtree(trainOut)
+            os.makedirs(trainOut, exist_ok=True)
+        if os.path.isdir(testOut):
+            shutil.rmtree(testOut)
+            os.makedirs(testOut, exist_ok=True)
+        
+        
+
         data_file = []
         folders = ['train', 'test']
         for folder in folders:
