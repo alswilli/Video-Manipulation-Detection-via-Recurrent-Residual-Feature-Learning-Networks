@@ -164,6 +164,10 @@ class DataSet():
                     base_image = base_image.convert('RGB')
 
                     sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
+            if vidClass == 'dropped':
+                sequence1 = sequence[0:start]
+                sequence2 = sequence[start+aug_len:]
+                sequence = sequence1 + sequence2
 
             vidName = row[2]
             np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
