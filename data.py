@@ -144,8 +144,9 @@ class DataSet():
                         #make black
                         sequence[i]=np.zeros(sequence[i].shape)
                 
-                quality = np.random.randint(5,25)
+                
                 if vidClass == 'compressed':
+                    quality = np.random.randint(5,25)
                     compress = iaa.JpegCompression(compression=(80, 100))
                     for i in range(start, start+aug_len):
                         # sequence[i] = sequence[i]*255.
