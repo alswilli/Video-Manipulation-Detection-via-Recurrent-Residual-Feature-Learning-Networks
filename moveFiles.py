@@ -5,7 +5,7 @@ import random
 from sklearn.model_selection import train_test_split
 import shutil
 
-def moveFiles():
+def moveFiles(limit_files=None):
 
     path_to_all = os.path.join('data', 'UCF-101')
 
@@ -17,7 +17,11 @@ def moveFiles():
     fileclasses = [random.choice(classes) for f in filenames]
 
     df = pd.DataFrame({'filenames': filenames, 'classes': fileclasses})
+    df = df.sample(frac=1)
+    if limit_files:
+        df = df[:limit_files]
 
+    
     train = df.reset_index().groupby('classes').apply(lambda x: x.sample(frac=0.8)).reset_index(drop=True).set_index('index')                  
     test = df.drop(train.index)
 
@@ -50,3 +54,5 @@ def moveFiles():
         os.makedirs(p, exist_ok = True) #if it exits do nothing
         outPath = os.path.join(p, videoName)
         shutil.copyfile(f, outPath) # copy from all to the correct folder
+
+    return train, test, filenames
