@@ -14,6 +14,7 @@ import sys
 from imgaug import augmenters as iaa
 import random
 from PIL import Image
+from io import BytesIO
 
 class DataSet():
 
@@ -111,7 +112,9 @@ class DataSet():
         NOTE: Currently turns a random 10 frames in class2 samples to all black. 
         """
         if trainTest == 'all':
+            print('Exporting Train Data...')
             self.dumpNumpyFiles('train')
+            print('Exporting Test Data')
             self.dumpNumpyFiles('test')
         else:
             outPath = os.path.join(self.sequence_path, 'npz', trainTest)
@@ -141,12 +144,22 @@ class DataSet():
                         #make black
                         sequence[i]=np.zeros(sequence[i].shape)
                 
+                quality = np.random.randint(5,25)
                 if vidClass == 'compressed':
                     compress = iaa.JpegCompression(compression=(80, 100))
                     for i in range(start, start+aug_len):
-                        sequence[i] = sequence[i]*255.
-                        sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                        sequence[i] = (sequence[i] / 255.).astype(np.float32)
+                        # sequence[i] = sequence[i]*255.
+                        # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
+                        # sequence[i] = (sequence[i] / 255.).astype(np.float32)
+                        img = (sequence[i]*255.).astype('uint8')
+                        img = Image.fromarray(img)
+                        buffer = BytesIO()
+                        img.save(buffer, 'JPEG', quality = quality)
+                        sequence[i] = (np.array(Image.open(buffer))/255.).astype(np.float32)
+                        buffer.close()
+                        
+
+
                 if vidClass == 'insert':
                     pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
                     png = random.choice(pngs)
