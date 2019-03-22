@@ -102,7 +102,7 @@ class DataSet():
         return [self.process_image(x) for x in frames]
 
 
-    def dumpNumpyFiles(self, trainTest, seq_len_limit=None):
+    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=None):
         """
         Exports sequences to .npz files in data/sequences/npz. 
         
@@ -110,67 +110,72 @@ class DataSet():
 
         NOTE: Currently turns a random 10 frames in class2 samples to all black. 
         """
-        outPath = os.path.join(self.sequence_path, 'npz', trainTest)
-        if os.path.isdir(outPath):
-            shutil.rmtree(outPath)
+        if trainTest == 'all':
+            self.dumpNumpyFiles('train')
+            self.dumpNumpyFiles('test')
+        else:
+            outPath = os.path.join(self.sequence_path, 'npz', trainTest)
+            if os.path.isdir(outPath):
+                shutil.rmtree(outPath)
 
-        os.makedirs(outPath, exist_ok=True)
+            os.makedirs(outPath, exist_ok=True)
 
-        train, test = self.split_train_test()
-        csv_data = train if trainTest == 'train' else test
+            train, test = self.split_train_test()
+            csv_data = train if trainTest == 'train' else test
 
-        x, y = [], []
-        for k in tqdm(range(len(csv_data))):
-            row = csv_data[k]
-            frames = self.get_frames_for_sample(row)
-            sequence = self.build_image_sequence(frames)
-            if seq_len_limit:
-                sequence = sequence[:seq_len_limit]
-            
-            vidClass = row[1]
-            #make random frames black
-            aug_len = 10
-            start = np.random.randint(len(sequence)-aug_len)
-            if vidClass == 'black':
-                for i in range(start, start+aug_len):
-                    #make black
-                    sequence[i]=np.zeros(sequence[i].shape)
-            
-            if vidClass == 'compressed':
-                compress = iaa.JpegCompression(compression=(80, 100))
-                for i in range(start, start+aug_len):
-                    sequence[i] = sequence[i]*255.
-                    sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                    sequence[i] = (sequence[i] / 255.).astype(np.float32)
-            if vidClass == 'insert':
-                pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
-                png = random.choice(pngs)
-                obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                for i in range(start, start+aug_len):
-                    
-                    
-                    sequence[i] = (sequence[i]*255).astype('uint8')
-                    base_image = Image.fromarray(sequence[i])
-                    base_image = base_image.convert('RGBA')
-                    object_image = Image.open(png)
-                    object_image = object_image.convert('RGBA')
+            x, y = [], []
+            for k in tqdm(range(len(csv_data))):
+                row = csv_data[k]
+                frames = self.get_frames_for_sample(row)
+                sequence = self.build_image_sequence(frames)
+                if seq_len_limit:
+                    sequence = sequence[:seq_len_limit]
+                
+                vidClass = row[1]
+                vidName = row[2]
+                #make random frames black
+                aug_len = 10
+                start = np.random.randint(len(sequence)-aug_len)
+                if vidClass == 'black':
+                    for i in range(start, start+aug_len):
+                        #make black
+                        sequence[i]=np.zeros(sequence[i].shape)
+                
+                if vidClass == 'compressed':
+                    compress = iaa.JpegCompression(compression=(80, 100))
+                    for i in range(start, start+aug_len):
+                        sequence[i] = sequence[i]*255.
+                        sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
+                        sequence[i] = (sequence[i] / 255.).astype(np.float32)
+                if vidClass == 'insert':
+                    pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
+                    png = random.choice(pngs)
+                    obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
+                    area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
+                    for i in range(start, start+aug_len):
+                        
+                        
+                        sequence[i] = (sequence[i]*255).astype('uint8')
+                        base_image = Image.fromarray(sequence[i])
+                        base_image = base_image.convert('RGBA')
+                        object_image = Image.open(png)
+                        object_image = object_image.convert('RGBA')
 
-                    
-                    object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
+                        
+                        object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
 
-                    
-                    base_image.paste(object_image, area, mask = object_image)
-                    base_image = base_image.convert('RGB')
+                        
+                        base_image.paste(object_image, area, mask = object_image)
+                        base_image = base_image.convert('RGB')
 
-                    sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-            if vidClass == 'dropped':
-                sequence1 = sequence[0:start]
-                sequence2 = sequence[start+aug_len:]
-                sequence = sequence1 + sequence2
+                        sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
+                if vidClass == 'dropped':
+                    sequence1 = sequence[0:start]
+                    sequence2 = sequence[start+aug_len:]
+                    sequence = sequence1 + sequence2
 
-            vidName = row[2]
-            np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
+                
+                np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
         
         
 class DataGenerator(Sequence):
