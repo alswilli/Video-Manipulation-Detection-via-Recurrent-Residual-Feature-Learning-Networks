@@ -28,7 +28,11 @@ class TestModels():
             metrics.append('top_k_categorical_accuracy')
 
         optimizer = Adam(lr=1e-5, decay=1e-6)
-        self.model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+        if self.nclasses>2:
+            self.model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
+        else:
+            self.model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
 
     def lrcn(self):
         """Build a CNN into RNN.
