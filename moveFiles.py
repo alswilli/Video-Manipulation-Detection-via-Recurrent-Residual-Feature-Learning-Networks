@@ -7,10 +7,11 @@ import shutil
 
 def moveFiles():
 
-    path_to_all = os.path.join('data', 'videos', 'all')
+    path_to_all = os.path.join('data', 'UCF-101')
 
     # load files names
-    filenames = glob.glob(os.path.join(path_to_all, '*.avi'))
+    filenames = glob.glob(os.path.join(path_to_all,'**', '*.avi'), recursive=True)
+
 
     classes = ['normal', 'insert', 'dropped', 'compressed', 'black']
     fileclasses = [random.choice(classes) for f in filenames]
