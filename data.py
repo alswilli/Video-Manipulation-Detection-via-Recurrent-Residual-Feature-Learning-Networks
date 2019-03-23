@@ -113,9 +113,9 @@ class DataSet():
         """
         if trainTest == 'all':
             print('Exporting Train Data...')
-            self.dumpNumpyFiles('train')
+            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit)
             print('Exporting Test Data')
-            self.dumpNumpyFiles('test')
+            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit)
         else:
             outPath = os.path.join(self.sequence_path, 'npz', trainTest)
             if os.path.isdir(outPath):
@@ -131,6 +131,7 @@ class DataSet():
                 row = csv_data[k]
                 frames = self.get_frames_for_sample(row)
                 sequence = self.build_image_sequence(frames)
+                sequence_orig = sequence
                 if seq_len_limit:
                     sequence = sequence[:seq_len_limit]
                 
@@ -184,9 +185,10 @@ class DataSet():
 
                         sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
                 if vidClass == 'dropped':
-                    sequence1 = sequence[0:start]
-                    sequence2 = sequence[start+aug_len:]
+                    sequence1 = sequence_orig[0:start]
+                    sequence2 = sequence_orig[start+aug_len:]
                     sequence = sequence1 + sequence2
+                    sequence = sequence[:seq_len_limit]
 
                 
                 np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
