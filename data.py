@@ -148,7 +148,7 @@ class DataSet():
                 
                 if vidClass == 'compressed':
                     quality = np.random.randint(5,25)
-                    compress = iaa.JpegCompression(compression=(80, 100))
+                    compress = iaa.JpegCompression(compression=(90, 100))
                     for i in range(start, start+aug_len):
                         # sequence[i] = sequence[i]*255.
                         # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
@@ -185,6 +185,8 @@ class DataSet():
 
                         sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
                 if vidClass == 'dropped':
+                    #make sure we don't drop at the very beginning
+                    start = np.random.randint(5, len(sequence)-aug_len)
                     sequence1 = sequence_orig[0:start]
                     sequence2 = sequence_orig[start+aug_len:]
                     sequence = sequence1 + sequence2
