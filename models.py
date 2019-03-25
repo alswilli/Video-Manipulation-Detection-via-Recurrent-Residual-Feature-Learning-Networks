@@ -68,23 +68,29 @@ class TestModels():
             padding='same', activation='relu')))
         model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
-        # model.add(TimeDistributed(Conv2D(128, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(128, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        model.add(TimeDistributed(Conv2D(128, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(Conv2D(128, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
-        # model.add(TimeDistributed(Conv2D(256, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(256, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        model.add(TimeDistributed(Conv2D(256, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(Conv2D(256, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
         
-        # model.add(TimeDistributed(Conv2D(512, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(512, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        model.add(TimeDistributed(Conv2D(512, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(Conv2D(512, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+
+        model.add(TimeDistributed(Conv2D(1024, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(Conv2D(1024, (3,3),
+            padding='same', activation='relu')))
+        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
         model.add(TimeDistributed(Flatten()))
 
@@ -125,6 +131,17 @@ class TestModels():
         x = identity_block(x, 3, [128, 128, 512], stage=3, block='b')
         x = identity_block(x, 3, [128, 128, 512], stage=3, block='c')
         x = identity_block(x, 3, [128, 128, 512], stage=3, block='d')
+
+        x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a')
+        x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b')
+        x = identity_block(x, 3, [256, 256, 1024], stage=4, block='c')
+        # x = identity_block(x, 3, [256, 256, 1024], stage=4, block='d')
+        # x = identity_block(x, 3, [256, 256, 1024], stage=4, block='e')
+        # x = identity_block(x, 3, [256, 256, 1024], stage=4, block='f')
+
+        # x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a')
+        # x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b')
+        # x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c')
 
         x = TimeDistributed(AveragePooling2D((7, 7), name='avg_pool'))(x)
 

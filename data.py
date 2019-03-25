@@ -77,13 +77,26 @@ class DataSet():
         images = sorted(glob.glob(os.path.join(path, filename+'*.jpg')))
         return images
 
-    def all_data_from_npz(self, trainTest):
-        files = glob.glob(os.path.join('data', 'sequences', 'npz', trainTest, '*.npz'))
+    def all_data_from_npz(self, trainTest, folderName='Default'):
+        files = glob.glob(os.path.join('data', 'sequences', 'npz', folderName, trainTest, '*.npz'))
         x,y=[],[]
         for f in files:
             data = np.load(f)
             x.append(data['x'])
             y.append(data['y'])
+        return np.array(x), np.array(y)
+
+    def some_data_from_npz(self, trainTest, range, folderName='Default'):
+        files = glob.glob(os.path.join('data', 'sequences', 'npz', folderName, trainTest, '*.npz'))
+        x,y=[],[]
+        count = 1
+        for f in files:
+            data = np.load(f)
+            x.append(data['x'])
+            y.append(data['y'])
+            if count == range:
+                break
+            count += 1
         return np.array(x), np.array(y)
 
 
@@ -103,7 +116,7 @@ class DataSet():
         return [self.process_image(x) for x in frames]
 
 
-    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=None):
+    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=None, folderName='Default'):
         """
         Exports sequences to .npz files in data/sequences/npz. 
         
@@ -113,14 +126,17 @@ class DataSet():
         """
         if trainTest == 'all':
             print('Exporting Train Data...')
-            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit)
+            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit, folderName=folderName)
             print('Exporting Test Data')
-            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit)
+            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit, folderName=folderName)
         else:
-            outPath = os.path.join(self.sequence_path, 'npz', trainTest)
+            prelimPath = os.path.join(self.sequence_path, 'npz', folderName)
+            if not os.path.isdir(prelimPath):
+                os.makedirs(prelimPath, exist_ok=True)
+
+            outPath = os.path.join(prelimPath, trainTest)
             if os.path.isdir(outPath):
                 shutil.rmtree(outPath)
-
             os.makedirs(outPath, exist_ok=True)
 
             train, test = self.split_train_test()
@@ -197,9 +213,10 @@ class DataSet():
         
         
 class DataGenerator(Sequence):
-    def __init__(self, trainTest='train', batch_size=1, shuffle=True):
+    def __init__(self, trainTest='train', folderName='Default', batch_size=1, shuffle=True):
+        self.folderName = folderName
         self.trainTest = trainTest
-        self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.trainTest, '*.npz'))
+        self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.folderName, self.trainTest, '*.npz'))
         self.data_length = len(self.files)
         self.batch_size = batch_size
         self.batch_num = 0
