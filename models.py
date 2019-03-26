@@ -28,6 +28,8 @@ class TestModels():
         elif model == 'lrcn_resnet':
             self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
             self.model = self.lrcn_resnet()
+        elif model == 'lstm':
+            self.model = self.lstm()
         else:
             print("No such network configuration: {0}" % model)
             sys.exit()
@@ -62,44 +64,54 @@ class TestModels():
             kernel_initializer="he_normal", activation='relu')))
         model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
-        model.add(TimeDistributed(Conv2D(64, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(Conv2D(64, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # model.add(TimeDistributed(Conv2D(64, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(Conv2D(64, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
-        model.add(TimeDistributed(Conv2D(128, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(Conv2D(128, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # model.add(TimeDistributed(Conv2D(128, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(Conv2D(128, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
-        model.add(TimeDistributed(Conv2D(256, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(Conv2D(256, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # model.add(TimeDistributed(Conv2D(256, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(Conv2D(256, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
         
-        model.add(TimeDistributed(Conv2D(512, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(Conv2D(512, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # model.add(TimeDistributed(Conv2D(512, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(Conv2D(512, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
-        model.add(TimeDistributed(Conv2D(1024, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(Conv2D(1024, (3,3),
-            padding='same', activation='relu')))
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # model.add(TimeDistributed(Conv2D(1024, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(Conv2D(1024, (3,3),
+        #     padding='same', activation='relu')))
+        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
         model.add(TimeDistributed(Flatten()))
-
+        model.add(Dense(24, activation='relu', name='fc1'))
         model.add(Dropout(0.5))
         model.add(LSTM(32, return_sequences=False, dropout=0.5))
         model.add(Dense(self.nclasses, activation='softmax'))
 
         return model
     
+    def lstm(self):
+        #batch_shape = (# of elements in batch (None means arbitrary), sequence length, size of features (i.e. size of dense layer that feeds into this.))
+        input_features = Input(batch_shape=(None,20,24,))
+        input_norm = BatchNormalization()(input_features)
+        input_drop = Dropout(0.5)(input_norm)
+        lstm = LSTM(32, return_sequences=True, stateful=False, name='lstm')(input_drop)
+        output = TimeDistributed(Dense(self.nclasses, activation='softmax'), name='fc')(lstm)
+        model = Model(inputs=input_features, outputs=output)
+        return model
+
     def lrcn_resnet(self):
         """Build a CNN into RNN.
         Starting version from:

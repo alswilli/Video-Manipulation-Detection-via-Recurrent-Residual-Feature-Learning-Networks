@@ -79,25 +79,27 @@ class DataSet():
 
     def all_data_from_npz(self, trainTest, folderName='Default'):
         files = glob.glob(os.path.join('data', 'sequences', 'npz', folderName, trainTest, '*.npz'))
-        x,y=[],[]
+        x,y,yseq=[],[],[]
         for f in files:
             data = np.load(f)
             x.append(data['x'])
             y.append(data['y'])
-        return np.array(x), np.array(y)
+            yseq.append(data['yseq'])
+        return np.array(x), np.array(y), np.array(yseq)
 
     def some_data_from_npz(self, trainTest, range, folderName='Default'):
         files = glob.glob(os.path.join('data', 'sequences', 'npz', folderName, trainTest, '*.npz'))
-        x,y=[],[]
+        x,y,yseq=[],[],[]
         count = 1
         for f in files:
             data = np.load(f)
             x.append(data['x'])
             y.append(data['y'])
+            yseq.append(data['yseq'])
             if count == range:
                 break
             count += 1
-        return np.array(x), np.array(y)
+        return np.array(x), np.array(y), np.array(yseq)
 
 
 
@@ -142,7 +144,7 @@ class DataSet():
             train, test = self.split_train_test()
             csv_data = train if trainTest == 'train' else test
 
-            x, y = [], []
+            
             for k in tqdm(range(len(csv_data))):
                 row = csv_data[k]
                 frames = self.get_frames_for_sample(row)
@@ -208,12 +210,18 @@ class DataSet():
                     sequence = sequence1 + sequence2
                     sequence = sequence[:seq_len_limit]
 
-                
-                np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass))
+                y_seq = ['normal']*len(sequence)
+                if not (vidClass == 'dropped'):
+                    y_seq[start:start+aug_len]=[vidClass]*aug_len
+                else:
+                    y_seq[start]=vidClass
+                y_seq = np.array([self.one_hot(k) for k in y_seq])
+
+                np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass), yseq=y_seq)
         
         
 class DataGenerator(Sequence):
-    def __init__(self, trainTest='train', folderName='Default', batch_size=1, shuffle=True):
+    def __init__(self, trainTest='train', folderName='Default', useSequences=False, batch_size=1, shuffle=True):
         self.folderName = folderName
         self.trainTest = trainTest
         self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.folderName, self.trainTest, '*.npz'))
@@ -221,6 +229,7 @@ class DataGenerator(Sequence):
         self.batch_size = batch_size
         self.batch_num = 0
         self.shuffle = shuffle
+        self.useSequences = useSequences
 
         self.on_epoch_end()
     
@@ -235,7 +244,10 @@ class DataGenerator(Sequence):
         for f in batch_files:
             sequence = np.load(f)
             x.append(sequence['x'])
-            y.append(sequence['y'])
+            if self.useSequences:
+                y.append(sequence['yseq'])
+            else:
+                y.append(sequence['y'])
 
         self.batch_num += 1
         # time.sleep(2)
