@@ -221,7 +221,7 @@ class DataSet():
         
         
 class DataGenerator(Sequence):
-    def __init__(self, trainTest='train', folderName='Default', useSequences=False, batch_size=1, shuffle=True):
+    def __init__(self, trainTest='train', folderName='Default', useSequences=False, batch_size=1, shuffle=True, class_weights=None):
         self.folderName = folderName
         self.trainTest = trainTest
         self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.folderName, self.trainTest, '*.npz'))
@@ -230,7 +230,8 @@ class DataGenerator(Sequence):
         self.batch_num = 0
         self.shuffle = shuffle
         self.useSequences = useSequences
-
+        self.class_weights = class_weights
+        
         self.on_epoch_end()
     
     def __len__(self):
@@ -238,20 +239,25 @@ class DataGenerator(Sequence):
 
     def __getitem__(self, index):
         x, y = [], []
-
+        weights = []
         batch_files = self.files[self.batch_num*self.batch_size:(self.batch_num+1)*self.batch_size]
 
         for f in batch_files:
             sequence = np.load(f)
             x.append(sequence['x'])
+            npy = sequence['y']
             if self.useSequences:
                 y.append(sequence['yseq'])
             else:
-                y.append(sequence['y'])
-
+                y.append(npy)
+            if self.class_weights:
+                weights.append(self.class_weights[npy.argmax()])
         self.batch_num += 1
-        # time.sleep(2)
-        return np.array(x), np.array(y)
+        
+        if self.class_weights:
+            return np.array(x), np.array(y), np.array(weights)
+        else:
+            return np.array(x), np.array(y)
     
     def on_epoch_end(self):
         if self.shuffle:

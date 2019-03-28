@@ -1,3 +1,5 @@
+import os
+
 from keras.layers import Dense, Flatten, Dropout, ZeroPadding3D
 from keras.layers.recurrent import LSTM
 from keras.models import Sequential, load_model
@@ -10,7 +12,7 @@ import config
 import sys
 
 from keras.models import Model
-from keras.layers import Input, Lambda, Conv2D, MaxPooling2D, BatchNormalization, ELU, Reshape, Concatenate, Activation, Flatten, Dense, ZeroPadding2D, AveragePooling2D, GlobalAveragePooling2D, GlobalMaxPooling2D, Dropout
+from keras.layers import Input, Lambda, Conv2D, MaxPooling2D, BatchNormalization, ELU, Reshape, Concatenate, Activation, Flatten, Dense, ZeroPadding2D, AveragePooling2D, GlobalAveragePooling2D, GlobalMaxPooling2D, Dropout, ConvLSTM2D, Bidirectional
 from keras.regularizers import l2
 from keras import layers
 import keras.backend as K
@@ -30,6 +32,12 @@ class TestModels():
             self.model = self.lrcn_resnet()
         elif model == 'lstm':
             self.model = self.lstm()
+        elif model == 'c3d':
+            self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.model = self.c3d()
+        elif model == 'conv_lstm':
+            self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.model = self.conv_lstm()
         else:
             print("No such network configuration: {0}" % model)
             sys.exit()
@@ -95,16 +103,38 @@ class TestModels():
         # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
         model.add(TimeDistributed(Flatten()))
-        model.add(Dense(24, activation='relu', name='fc1'))
+        model.add(Dense(128, activation='relu', name='fc1'))
         model.add(Dropout(0.5))
-        model.add(LSTM(32, return_sequences=False, dropout=0.5))
-        model.add(Dense(self.nclasses, activation='softmax'))
+        model.add(LSTM(32, return_sequences=True, dropout=0.5))
+        model.add(TimeDistributed(Dense(self.nclasses, activation='softmax')))
 
         return model
+
+    def conv_lstm(self):
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(64, (1,1), return_sequences=True)(conv)
+        flat = TimeDistributed(Flatten())(conv2)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+
+    def c3d(self):
+
+        inputs = Input(shape=(20, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS))
+        conv = Conv3D(5, (1,1,1))(inputs)
+        conv2 = Conv3D(5, (1,1,1))(conv)
+        flat = Flatten()(conv2)
+        dense = Dense(64, activation='relu')(flat)
+        outputs = Dense(self.nclasses, activation='softmax')(dense)
+        model = Model(inputs=inputs, outputs=outputs)
+        return model
+
     
     def lstm(self):
         #batch_shape = (# of elements in batch (None means arbitrary), sequence length, size of features (i.e. size of dense layer that feeds into this.))
-        input_features = Input(batch_shape=(None,20,24,))
+        input_features = Input(batch_shape=(None,20,128,))
         input_norm = BatchNormalization()(input_features)
         input_drop = Dropout(0.5)(input_norm)
         lstm = LSTM(32, return_sequences=True, stateful=False, name='lstm')(input_drop)
