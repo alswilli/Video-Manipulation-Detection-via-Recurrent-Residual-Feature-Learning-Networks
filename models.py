@@ -38,6 +38,9 @@ class TestModels():
         elif model == 'conv_lstm':
             self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
             self.model = self.conv_lstm()
+        elif 'conv_lstm' in model:
+            self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.model = eval('self.'+model+'()')
         else:
             print("No such network configuration: {0}" % model)
             sys.exit()
@@ -113,16 +116,103 @@ class TestModels():
     def conv_lstm(self):
         inputs = Input(shape=self.input_shape)
         conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
-        conv2 = ConvLSTM2D(64, (1,1), return_sequences=True)(conv)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
         flat = TimeDistributed(Flatten())(conv2)
         outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+    
+    def conv_lstm1(self):
+        """ Conv Layers in front of ConvLSTM
+        """
+        inputs = Input(shape=self.input_shape)
+        pconv = TimeDistributed(Conv2D(32, (7,7), strides=(2,2), activation='relu'))(inputs)
+        pconv = TimeDistributed(Conv2D(64, (3,3), strides=(2,2), activation='relu'))(pconv)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(pconv)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        flat = TimeDistributed(Flatten())(conv2)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+    
+    def conv_lstm2(self):
+        """ Conv Layers after ConvLSTM
+        """
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        pconv = TimeDistributed(Conv2D(32, (7,7), strides=(2,2), activation='relu'))(conv2)
+        pconv = TimeDistributed(Conv2D(64, (3,3), strides=(2,2), activation='relu'))(pconv)
+
+        flat = TimeDistributed(Flatten())(pconv)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+
+    def conv_lstm3(self):
+        """ Extra Dense layer at the end. 
+        """
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        flat = TimeDistributed(Flatten())(conv2)
+        fc1 = TimeDistributed(Dense(512, activation='relu'))(flat)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(fc1)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+
+    def conv_lstm4(self):
+        """ 3 conv-lstms
+        """
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        conv3 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv2)
+        flat = TimeDistributed(Flatten())(conv3)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+
+    def conv_lstm5(self):
+        """ ConvLSTM with average pooling
+        """
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        avgpool = TimeDistributed(AveragePooling2D((7, 7), name='avg_pool'))(conv2)
+        flat = TimeDistributed(Flatten())(avgpool)
         
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+    
+    def conv_lstm6(self):
+        """ ConvLSTM with Dropout before dense
+        """
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        flat = TimeDistributed(Flatten())(conv2)
+        drop = Dropout(0.5)(flat)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(drop)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+    
+    def conv_lstm7(self):
+        """ ConvLSTM with Dropout in Convs
+        """
+        inputs = Input(shape=self.input_shape)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True, dropout=0.5)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True, dropout=0.5)(conv)
+        flat = TimeDistributed(Flatten())(conv2)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
         model = Model(inputs = inputs, outputs = outputs)
         return model
 
     def c3d(self):
 
         inputs = Input(shape=(20, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS))
+        pconv = TimeDistributed(Conv2D(32, (3,3), activation))
         conv = Conv3D(5, (1,1,1))(inputs)
         conv2 = Conv3D(5, (1,1,1))(conv)
         flat = Flatten()(conv2)
