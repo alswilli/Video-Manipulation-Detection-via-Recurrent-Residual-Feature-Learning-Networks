@@ -11,6 +11,15 @@ from keras.layers.convolutional import (Conv2D, MaxPooling3D, Conv3D,
 import config
 import sys
 
+import tensorflow as tf
+from keras import backend as K
+
+def auc(y_true, y_pred):
+    auc = tf.metrics.auc(y_true, y_pred)[1]
+    K.get_session().run(tf.local_variables_initializer())
+    return auc
+
+
 from keras.models import Model
 from keras.layers import Input, Lambda, Conv2D, MaxPooling2D, BatchNormalization, ELU, Reshape, Concatenate, Activation, Flatten, Dense, ZeroPadding2D, AveragePooling2D, GlobalAveragePooling2D, GlobalMaxPooling2D, Dropout, ConvLSTM2D, Bidirectional
 from keras.regularizers import l2
@@ -45,7 +54,7 @@ class TestModels():
             print("No such network configuration: {0}" % model)
             sys.exit()
         
-        metrics = ['accuracy']
+        metrics = ['accuracy', auc]
         if self.nclasses >= 10:
             metrics.append('top_k_categorical_accuracy')
 
