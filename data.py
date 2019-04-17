@@ -156,7 +156,7 @@ class DataSet():
                 vidClass = row[1]
                 vidName = row[2]
                 #make random frames black
-                aug_len = 10
+                aug_len = config.MANIPULATION_LENGTH
                 start = np.random.randint(len(sequence)-aug_len)
                 if vidClass == 'black':
                     for i in range(start, start+aug_len):
