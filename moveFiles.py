@@ -4,6 +4,7 @@ import glob
 import random
 from sklearn.model_selection import train_test_split
 import shutil
+import config
 
 def moveFiles(trainData=None, testData=None, limit_files=config.FILE_LIMIT, classes = ['normal', 'insert', 'compressed', 'black', 'blurred']):
 
