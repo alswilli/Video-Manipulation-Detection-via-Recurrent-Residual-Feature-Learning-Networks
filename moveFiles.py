@@ -13,19 +13,19 @@ def moveFiles(trainData=None, testData=None, limit_files=config.FILE_LIMIT, clas
     if trainData is None or testData is None:
         # load files names
         filenames = glob.glob(os.path.join(path_to_all,'**', '*.avi'), recursive=True)
-
         fileclasses = [random.choice(classes[1:]) for f in filenames]
-        fileclasses[0:10]=['normal']*10
         
-
         df = pd.DataFrame({'filenames': filenames, 'classes': fileclasses})
-        df = df.sample(frac=1)
-        if limit_files:
-            df = df[:limit_files]
 
-        
+        if limit_files:
+            df = df.sample(limit_files)
+        else:
+            df = df.sample(frac=1)
+
+
         train = df.reset_index().groupby('classes').apply(lambda x: x.sample(frac=0.8)).reset_index(drop=True).set_index('index')                  
         test = df.drop(train.index)
+        train.classes.iloc[0]='normal'
     else:
         filenames = glob.glob(os.path.join(path_to_all,'**', '*.avi'), recursive=True)
         train = trainData
