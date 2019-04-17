@@ -13,7 +13,7 @@ import shutil
 import sys
 from imgaug import augmenters as iaa
 import random
-from PIL import Image
+from PIL import Image, ImageFilter
 from io import BytesIO
 
 class DataSet():
