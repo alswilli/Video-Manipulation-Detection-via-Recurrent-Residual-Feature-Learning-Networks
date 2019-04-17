@@ -1,7 +1,7 @@
 import os
 
 from keras.layers import Dense, Flatten, Dropout, ZeroPadding3D
-from keras.layers.recurrent import LSTM
+from keras.layers.recurrent import LSTM, GRU
 from keras.models import Sequential, load_model
 from keras.optimizers import Adam, RMSprop
 from keras.layers.wrappers import TimeDistributed
@@ -10,6 +10,10 @@ from keras.layers.convolutional import (Conv2D, MaxPooling3D, Conv3D,
 # from collections import deque
 import config
 import sys
+from keras.layers.core import *
+from keras.layers import multiply
+from keras.models import *
+from keras.layers import concatenate
 
 import tensorflow as tf
 from keras import backend as K
@@ -19,12 +23,12 @@ def auc(y_true, y_pred):
     K.get_session().run(tf.local_variables_initializer())
     return auc
 
-
 from keras.models import Model
 from keras.layers import Input, Lambda, Conv2D, MaxPooling2D, BatchNormalization, ELU, Reshape, Concatenate, Activation, Flatten, Dense, ZeroPadding2D, AveragePooling2D, GlobalAveragePooling2D, GlobalMaxPooling2D, Dropout, ConvLSTM2D, Bidirectional
 from keras.regularizers import l2
 from keras import layers
 import keras.backend as K
+SINGLE_ATTENTION_VECTOR = False
 
 class TestModels():
     def __init__(self, nclasses, model, seq_length=config.MIN_SEQ_LENGTH, saved_model=None):
@@ -45,24 +49,84 @@ class TestModels():
             self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
             self.model = self.c3d()
         elif model == 'conv_lstm':
-            self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.input_shape = (20, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
             self.model = self.conv_lstm()
         elif 'conv_lstm' in model:
-            self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.input_shape = (20, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.model = eval('self.'+model+'()')
+        elif 'lrcn' in model:
+            self.input_shape = (20, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
             self.model = eval('self.'+model+'()')
         else:
             print("No such network configuration: {0}" % model)
             sys.exit()
         
-        metrics = ['accuracy', auc]
+        metrics = ['accuracy']
         if self.nclasses >= 10:
             metrics.append('top_k_categorical_accuracy')
 
-        optimizer = Adam(lr=1e-5, decay=1e-6)
+        optimizer = Adam(lr=1e-4, decay=1e-6)
+        # optimizer = 'rmsprop'
         if self.nclasses>2:
             self.model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
         else:
             self.model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+    
+    def attention_3d_block(self, inputs):
+        # inputs.shape = (batch_size, time_steps, input_dim)
+        print(inputs.shape)
+        TIME_STEPS = 20
+        print(TIME_STEPS)
+        # input_dim = inputs.shape[2:]
+        a = Permute((2,1))(inputs)
+        # a = Reshape((input_dim))(a) # this line is not useful. It's just to know which dimension is what.
+        a = Dense(int(TIME_STEPS), activation='softmax')(a)
+        a_probs = Permute((2, 1), name='attention_vec')(a)
+        # output_attention_mul = concatenate([inputs, a_probs], name='attention_mul', mode='mul')
+        output_attention_mul = multiply([inputs, a_probs], name='attention_mul')
+        return output_attention_mul
+
+    #LRCN with attention
+    def lrcn2(self):
+        inputs = Input(shape=self.input_shape)
+        # attention_mul = self.attention_3d_block(inputs)
+        # flat1 = TimeDistributed(Flatten())(inputs)
+        # lstm = LSTM(10, return_sequences=True, dropout=0)(flat1)
+        c1 = TimeDistributed(Conv2D(32, (7,7), strides=(2,2), activation='relu', padding='valid'))(inputs)
+        # c1 = TimeDistributed(MaxPooling2D())(c1)
+        c2 = TimeDistributed(Conv2D(64, (5,5), strides=(2,2), activation='relu', padding='valid'))(c1)
+        # c1 = TimeDistributed(MaxPooling2D())(c1)
+        c3 = TimeDistributed(Conv2D(128, (3,3), strides=(2,2), activation='relu', padding='valid'))(c2)
+        c4 = TimeDistributed(Conv2D(256, (1,1), strides=(2,2), activation='relu', padding='valid'))(c3)
+        c5 = TimeDistributed(Conv2D(512, (1,1), strides=(2,2), activation='relu', padding='valid'))(c4)
+        # c6 = TimeDistributed(Conv2D(1024, (1,1), strides=(2,2), activation='relu', padding='valid'))(c5)
+        # c1 = TimeDistributed(Conv2D(128, (3,3), strides=(2,2), activation='relu', padding='valid'))(c1)
+        # c1 = TimeDistributed(MaxPooling2D())(c1)
+        # norm = BatchNormalization(axis=-1)(c1)
+        # c1 = TimeDistributed(Conv2D(32, (3,3), strides=(2,2), activation='relu', padding='valid'))(c1)
+        # c1 = TimeDistributed(Conv2D(32, (3,3), strides=(2,2), activation='relu', padding='valid'))(c1)
+        # pool = TimeDistributed(MaxPooling2D())(c1)
+        # c2 = TimeDistributed(Conv2D(64, (3,3), activation='relu', padding='valid'), input_shape=self.input_shape)(c1)
+        
+        # flat = TimeDistributed(Flatten())(c5)
+        flat = TimeDistributed(GlobalMaxPooling2D())(c5)
+        
+        # attention_mul = self.attention_3d_block(flat)
+
+        # dense = Dense(64, activation='relu')(flat)
+        drop = Dropout(0.25)(flat)
+        # attention_mul = self.attention_3d_block(drop)
+        # lstm = LSTM(10, return_sequences=True,dropout=0.25)(drop)
+        # attention_mul = self.attention_3d_block(lstm)
+        # dense1 = TimeDistributed(Dense(self.nclasses, activation='softmax'))(drop)
+        lstm = LSTM(100, return_sequences=True)(drop)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(lstm)
+
+        model = Model(inputs=inputs, outputs=outputs)
+        return model
+
+
+       
 
     def lrcn(self):
         """Build a CNN into RNN.
@@ -117,6 +181,7 @@ class TestModels():
         model.add(TimeDistributed(Flatten()))
         model.add(Dense(128, activation='relu', name='fc1'))
         model.add(Dropout(0.5))
+        
         model.add(LSTM(32, return_sequences=True, dropout=0.5))
         model.add(TimeDistributed(Dense(self.nclasses, activation='softmax')))
 
@@ -124,13 +189,35 @@ class TestModels():
 
     def conv_lstm(self):
         inputs = Input(shape=self.input_shape)
+        # attention_mul = self.attention_3d_block(inputs)
         conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
         conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
         flat = TimeDistributed(Flatten())(conv2)
         outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
         model = Model(inputs = inputs, outputs = outputs)
         return model
-    
+
+    def conv_lstm_att1(self):
+        inputs = Input(shape=self.input_shape)
+        attention_mul = self.attention_3d_block(inputs)
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(attention_mul)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        flat = TimeDistributed(Flatten())(conv2)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+
+    def conv_lstm_att2(self):
+        inputs = Input(shape=self.input_shape)
+        
+        conv = ConvLSTM2D(32, (3,3), return_sequences=True)(inputs)
+        conv2 = ConvLSTM2D(32, (1,1), return_sequences=True)(conv)
+        attention_mul = self.attention_3d_block(conv2)
+        flat = TimeDistributed(Flatten())(attention_mul)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(flat)
+        model = Model(inputs = inputs, outputs = outputs)
+        return model
+
     def conv_lstm1(self):
         """ Conv Layers in front of ConvLSTM
         """

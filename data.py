@@ -118,13 +118,13 @@ class DataSet():
         return [self.process_image(x) for x in frames]
 
 
-    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=None, folderName='Default'):
+    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=config.DEFAULT_SEQ_LENGTH, folderName='Default'):
         """
         Exports sequences to .npz files in data/sequences/npz. 
         
         DataGenerator uses these files to compute batches. 
 
-        NOTE: Currently turns a random 10 frames in class2 samples to all black. 
+         
         """
         if trainTest == 'all':
             print('Exporting Train Data...')
@@ -165,8 +165,9 @@ class DataSet():
                 
                 
                 if vidClass == 'compressed':
-                    quality = np.random.randint(5,25)
-                    compress = iaa.JpegCompression(compression=(90, 100))
+                    # quality = np.random.randint(5,25)
+                    quality = np.random.randint(1,5)
+                    # compress = iaa.JpegCompression(compression=(100, 100))
                     for i in range(start, start+aug_len):
                         # sequence[i] = sequence[i]*255.
                         # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
@@ -183,7 +184,9 @@ class DataSet():
                 if vidClass == 'insert':
                     pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
                     png = random.choice(pngs)
-                    obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
+                    # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
+                    obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
+
                     area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
                     for i in range(start, start+aug_len):
                         
@@ -209,6 +212,28 @@ class DataSet():
                     sequence2 = sequence_orig[start+aug_len:]
                     sequence = sequence1 + sequence2
                     sequence = sequence[:seq_len_limit]
+                
+                if vidClass == 'blurred':
+                    # box = (50, 100, 170, 200) #starting spots from (0,0)
+                    xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
+                    ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
+                    xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
+                    ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
+                    box = (xbox_start, ybox_start, xbox_end, ybox_end)
+                    # region = im.crop(box)
+                    # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
+                    # area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
+                    for i in range(start, start+aug_len):
+                        
+                        
+                        sequence[i] = (sequence[i]*255).astype('uint8')
+                        base_image = Image.fromarray(sequence[i])
+
+                        region = base_image.crop(box)
+                        region = region.filter(ImageFilter.GaussianBlur(radius=50))
+                        base_image.paste(region, box)
+
+                        sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
 
                 y_seq = ['normal']*len(sequence)
                 if not (vidClass == 'dropped'):
@@ -221,7 +246,7 @@ class DataSet():
         
         
 class DataGenerator(Sequence):
-    def __init__(self, trainTest='train', folderName='Default', useSequences=False, batch_size=1, shuffle=True, class_weights=None):
+    def __init__(self, trainTest='train', folderName='Default', useSequences=False, batch_size=1, shuffle=True, class_weights=None, filter=None):
         self.folderName = folderName
         self.trainTest = trainTest
         self.files = glob.glob(os.path.join('data', 'sequences', 'npz', self.folderName, self.trainTest, '*.npz'))
@@ -231,6 +256,7 @@ class DataGenerator(Sequence):
         self.shuffle = shuffle
         self.useSequences = useSequences
         self.class_weights = class_weights
+        self.filter = filter
         
         self.on_epoch_end()
     
@@ -244,15 +270,28 @@ class DataGenerator(Sequence):
 
         for f in batch_files:
             sequence = np.load(f)
-            x.append(sequence['x'])
+            
             npy = sequence['y']
             if self.useSequences:
+                seq = sequence['x']
+                if self.filter == 'mean':
+                    seq = np.array(seq).squeeze()
+                    
+                    mean = np.mean(seq, axis=0)
+                    normed = np.array([k-mean for k in seq])
+                    seq = np.interp(normed, (normed.min(), normed.max()), (0,1))
+                    # seq = normed.clip(min=0)
+                
+                x.append(seq)
                 y.append(sequence['yseq'])
             else:
+                x.append(sequence['x'])
                 y.append(npy)
             if self.class_weights:
                 weights.append(self.class_weights[npy.argmax()])
         self.batch_num += 1
+
+        
         
         if self.class_weights:
             return np.array(x), np.array(y), np.array(weights)

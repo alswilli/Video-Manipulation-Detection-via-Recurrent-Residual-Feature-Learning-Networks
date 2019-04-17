@@ -5,7 +5,7 @@ import random
 from sklearn.model_selection import train_test_split
 import shutil
 
-def moveFiles(trainData=None, testData=None, limit_files=None):
+def moveFiles(trainData=None, testData=None, limit_files=config.FILE_LIMIT, classes = ['normal', 'insert', 'compressed', 'black', 'blurred']):
 
     path_to_all = os.path.join('data', 'UCF-101')
 
@@ -13,9 +13,9 @@ def moveFiles(trainData=None, testData=None, limit_files=None):
         # load files names
         filenames = glob.glob(os.path.join(path_to_all,'**', '*.avi'), recursive=True)
 
-
-        classes = ['normal', 'insert', 'dropped', 'compressed', 'black']
-        fileclasses = [random.choice(classes) for f in filenames]
+        fileclasses = [random.choice(classes[1:]) for f in filenames]
+        fileclasses[0:10]=['normal']*10
+        
 
         df = pd.DataFrame({'filenames': filenames, 'classes': fileclasses})
         df = df.sample(frac=1)
