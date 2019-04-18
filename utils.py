@@ -86,9 +86,11 @@ class EasyAccuracy(Callback):
         self.accs = []
         
     def on_epoch_end(self, epoch, logs={}):
+        
         val_acc = logs.get('val_acc')
-        acc = val_acc/self.prop - 1
+        acc = val_acc/self.prop - (1/self.prop - 1)
         self.accs.append(acc)
+        logs['new_acc'] = acc
         print('Non-Normal Accuracy: {0:.4f}'.format(acc))
         return
 
@@ -101,11 +103,13 @@ def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
         while curr < length:  
                 end =  min(length, curr+batch_size)
                 preds = model.predict(x_val[curr:end])
-                for i in range(curr, end):
-                        sample = preds[i]
-                        args = [dataset.classes[p.argmax()] for p in sample]
-                        pred_all.extend(args)
-                        true_all.extend([dataset.reverse_one_hot(k) for k in y_val[i]])
+                ys = y_val[curr:end]
+                for i in range(0, end-curr):
+                        
+                                sample = preds[i]
+                                args = [dataset.classes[p.argmax()] for p in sample]
+                                pred_all.extend(args)
+                                true_all.extend([dataset.reverse_one_hot(k) for k in ys[i]])
                 curr += batch_size
 
         df = pd.DataFrame({'truth': true_all, 'pred': pred_all})
