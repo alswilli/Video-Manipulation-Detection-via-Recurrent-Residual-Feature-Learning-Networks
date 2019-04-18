@@ -74,3 +74,21 @@ class NewAccuracy(Callback):
         self.accs.append(acc)
         
         return
+
+
+def nonNormalAccuracy(x_val,y_val,dataset, model):
+        true_all = []
+        pred_all = []
+        preds = model.predict(x_val)
+        for i in range(len(preds)):
+                sample = preds[i]
+                args = [dataset.classes[p.argmax()] for p in sample]
+                pred_all.extend(args)
+                true_all.extend([dataset.reverse_one_hot(k) for k in y_val[i]])
+
+        df = pd.DataFrame({'truth': true_all, 'pred': pred_all})
+        df = df[df.truth != 'normal']
+
+        acc = accuracy_score(df.truth, df.pred)
+        # print('Non-Normal Accuracy: {0:.4f}'.format(acc))
+        return acc
