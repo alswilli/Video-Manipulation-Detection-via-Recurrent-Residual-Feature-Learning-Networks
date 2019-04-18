@@ -14,6 +14,7 @@ from keras.layers.core import *
 from keras.layers import multiply
 from keras.models import *
 from keras.layers import concatenate
+from keras.applications.resnet50 import ResNet50
 
 import tensorflow as tf
 from keras import backend as K
@@ -45,6 +46,9 @@ class TestModels():
             self.model = self.lrcn_resnet()
         elif model == 'lstm':
             self.model = self.lstm()
+        elif model == 'newResNet':
+            self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
+            self.model = self.newResNet()
         elif model == 'c3d':
             self.input_shape = (None, config.IMG_WIDTH, config.IMG_HEIGHT, config.IMG_CHANNELS)
             self.model = self.c3d()
@@ -326,6 +330,23 @@ class TestModels():
         lstm = LSTM(32, return_sequences=True, stateful=False, name='lstm')(input_drop)
         output = TimeDistributed(Dense(self.nclasses, activation='softmax'), name='fc')(lstm)
         model = Model(inputs=input_features, outputs=output)
+        return model
+
+    def newResNet(self):
+        resnet = ResNet50(weights='imagenet', include_top=False)
+        # resnet = ResNet50(include_top=False)
+
+        # input_layer = Input(shape=(seq_len, 224, 224, 3))
+        input_layer = Input(shape=self.input_shape)
+        curr_layer = TimeDistributed(resnet)(input_layer)
+        # flat = TimeDistributed(Flatten())(curr_layer)
+        pool = TimeDistributed(GlobalMaxPooling2D())(curr_layer)
+        # curr_layer = Reshape(target_shape=(20, 2048))(curr_layer)
+        drop = Dropout(0.25)(pool)
+        # lstm_out = LSTM(32, return_sequences=True)(drop)
+
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(drop)
+        model = Model(inputs = inputs, outputs = outputs)
         return model
 
     def lrcn_resnet(self):
