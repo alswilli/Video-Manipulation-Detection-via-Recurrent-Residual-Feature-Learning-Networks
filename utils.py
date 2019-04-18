@@ -95,7 +95,7 @@ class EasyAccuracy(Callback):
         return
 
 
-def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
+def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=10):
         true_all = []
         pred_all = []
         curr = 0
@@ -105,7 +105,6 @@ def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
                 preds = model.predict(x_val[curr:end])
                 ys = y_val[curr:end]
                 for i in range(0, end-curr):
-                        
                                 sample = preds[i]
                                 args = [dataset.classes[p.argmax()] for p in sample]
                                 pred_all.extend(args)
