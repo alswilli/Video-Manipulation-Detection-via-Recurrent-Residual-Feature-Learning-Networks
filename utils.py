@@ -6,7 +6,8 @@ import config
 import pandas as pd
 import pandas_ml as pml
 from IPython.display import clear_output
-
+from keras.callbacks import Callback
+from sklearn.metrics import accuracy_score
 
 def displayImage(img_arr):
     plt.imshow(img_arr)
@@ -41,3 +42,35 @@ def confusion_matrix(truth, pred):
 def display_confusion(conf):
     conf.plot()
     plt.show()
+
+class NewAccuracy(Callback):
+    
+    def __init__(self, x_val,y_val, dataset):
+        super().__init__()
+        self.x_val = x_val
+        self.y_val = y_val
+        self.dataset = dataset
+        
+    
+    def on_train_begin(self, logs={}):
+        self.accs = []
+        
+    def on_epoch_end(self, epoch, logs={}):
+        true_all = []
+        pred_all = []
+        preds = self.model.predict(self.x_val)
+        for i in range(len(preds)):
+            sample = preds[i]
+            args = [self.dataset.classes[p.argmax()] for p in sample]
+            pred_all.extend(args)
+            true_all.extend([self.dataset.reverse_one_hot(k) for k in self.y_val[i]])
+        
+        df = pd.DataFrame({'truth': true_all, 'pred': pred_all})
+        df = df[df.truth != 'normal']
+        
+        acc = accuracy_score(df.truth, df.pred)
+        print('Non-Normal Accuracy: {0:.4f}'.format(acc))
+        
+        self.accs.append(acc)
+        
+        return
