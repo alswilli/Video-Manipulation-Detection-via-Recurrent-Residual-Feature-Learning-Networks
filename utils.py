@@ -76,15 +76,20 @@ class NewAccuracy(Callback):
         return
 
 
-def nonNormalAccuracy(x_val,y_val,dataset, model):
+def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
         true_all = []
         pred_all = []
-        preds = model.predict(x_val)
-        for i in range(len(preds)):
-                sample = preds[i]
-                args = [dataset.classes[p.argmax()] for p in sample]
-                pred_all.extend(args)
-                true_all.extend([dataset.reverse_one_hot(k) for k in y_val[i]])
+        curr = 0
+        length = len(y_val)
+        while curr < len(y_val):  
+                end =  min(length, curr+batch_size)
+                preds = model.predict(x_val[curr:end])
+                for i in range(curr, end):
+                        sample = preds[i]
+                        args = [dataset.classes[p.argmax()] for p in sample]
+                        pred_all.extend(args)
+                        true_all.extend([dataset.reverse_one_hot(k) for k in y_val[i]])
+                curr += batch_size
 
         df = pd.DataFrame({'truth': true_all, 'pred': pred_all})
         df = df[df.truth != 'normal']
