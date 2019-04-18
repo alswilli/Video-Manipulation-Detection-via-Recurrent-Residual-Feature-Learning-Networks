@@ -81,7 +81,7 @@ def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
         pred_all = []
         curr = 0
         length = len(y_val)
-        while curr < len(y_val):  
+        while curr < length:  
                 end =  min(length, curr+batch_size)
                 preds = model.predict(x_val[curr:end])
                 for i in range(curr, end):
