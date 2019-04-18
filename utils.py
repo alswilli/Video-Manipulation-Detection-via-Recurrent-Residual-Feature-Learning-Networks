@@ -75,6 +75,23 @@ class NewAccuracy(Callback):
         
         return
 
+class EasyAccuracy(Callback):
+    
+    def __init__(self, seq_len=config.DEFAULT_SEQ_LENGTH, manip_len=config.MANIPULATION_LENGTH):
+        super().__init__()
+        self.prop = (manip_len*1.0/seq_len)
+        
+    
+    def on_train_begin(self, logs={}):
+        self.accs = []
+        
+    def on_epoch_end(self, epoch, logs={}):
+        val_acc = logs.get('val_acc')
+        acc = val_acc/self.prop - 1
+        self.accs.append(acc)
+        print('Non-Normal Accuracy: {0:.4f}'.format(acc))
+        return
+
 
 def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
         true_all = []
