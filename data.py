@@ -191,9 +191,9 @@ class DataSet():
         """
         if trainTest == 'all':
             print('Exporting Train Data...')
-            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit, folderName=folderName)
+            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit, folderName=folderName, experiment=experiment)
             print('Exporting Test Data')
-            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit, folderName=folderName)
+            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit, folderName=folderName, experiment=experiment)
         else:
             prelimPath = os.path.join(self.sequence_path, 'npz', folderName)
             if not os.path.isdir(prelimPath):
