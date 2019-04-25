@@ -265,7 +265,7 @@ class DataSet():
                     valid_classes.remove('normal')
 
                     if num_blocks > len(valid_classes):
-                                raise Exception('Too many blocks ({0}), for {1} non-normal classes'.format(num_blocks, len(valid_classes)))
+                        raise Exception('Too many blocks ({0}), for {1} non-normal classes'.format(num_blocks, len(valid_classes)))
 
                     random.shuffle(valid_classes)
                     valid_classes = valid_classes[:config.NUM_MANIPS]
