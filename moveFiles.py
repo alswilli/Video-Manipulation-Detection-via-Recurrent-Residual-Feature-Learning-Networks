@@ -62,3 +62,21 @@ def moveFiles(trainData=None, testData=None, limit_files=config.FILE_LIMIT, clas
         shutil.copyfile(f, outPath) # copy from all to the correct folder
 
     return train, test, filenames
+
+
+def randomizeNumpy():
+    npz_path = os.path.join('data', 'sequences', 'npz', 'Default')
+    train_files = glob.glob(os.path.join(npz_path, 'train', '*.npz'))
+    test_files = glob.glob(os.path.join(npz_path, 'test', '*.npz'))
+
+    random.shuffle(train_files)
+    swap = train_files[:len(test_files)]
+
+    for f in swap:
+        #move training files into test folder
+        name = os.path.basename(f)
+        shutil.move(f, os.path.join(npz_path, 'test', name))
+        
+    for f in test_files:
+        name = os.path.basename(f)
+        shutil.move(f, os.path.join(npz_path, 'train', name))
