@@ -95,7 +95,7 @@ class EasyAccuracy(Callback):
         return
 
 
-def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
+def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=10):
         true_all = []
         pred_all = []
         curr = 0
@@ -105,7 +105,6 @@ def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
                 preds = model.predict(x_val[curr:end])
                 ys = y_val[curr:end]
                 for i in range(0, end-curr):
-                        
                                 sample = preds[i]
                                 args = [dataset.classes[p.argmax()] for p in sample]
                                 pred_all.extend(args)
@@ -113,8 +112,14 @@ def nonNormalAccuracy(x_val,y_val,dataset, model, batch_size=20):
                 curr += batch_size
 
         df = pd.DataFrame({'truth': true_all, 'pred': pred_all})
-        df = df[df.truth != 'normal']
+        nonNormal = df[df.truth != 'normal']
 
-        acc = accuracy_score(df.truth, df.pred)
+        acc = accuracy_score(nonNormal.truth, nonNormal.pred)
+        accs = {}
+        for c in df.truth.unique():
+                class_df = df[df.truth == c]
+                accs[c] = accuracy_score(class_df.truth, class_df.pred)
         # print('Non-Normal Accuracy: {0:.4f}'.format(acc))
-        return acc
+        return acc, accs
+
+

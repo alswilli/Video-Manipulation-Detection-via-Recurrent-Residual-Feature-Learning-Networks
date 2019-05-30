@@ -15,6 +15,7 @@ from keras.layers import multiply
 from keras.models import *
 from keras.layers import concatenate
 from keras.applications.resnet50 import ResNet50
+# from keras import regularizers
 
 import tensorflow as tf
 from keras import backend as K
@@ -132,62 +133,95 @@ class TestModels():
 
        
 
+    # def lrcn(self):
+    #     """Build a CNN into RNN.
+    #     Starting version from:
+    #         https://github.com/udacity/self-driving-car/blob/master/
+    #             steering-models/community-models/chauffeur/models.py
+    #     Heavily influenced by VGG-16:
+    #         https://arxiv.org/abs/1409.1556
+    #     Also known as an LRCN:
+    #         https://arxiv.org/pdf/1411.4389.pdf
+    #     """
+
+
+    #     model = Sequential()
+
+    #     model.add(TimeDistributed(Conv2D(32, (7, 7), strides=(2, 2),
+    #         activation='relu', padding='same'), input_shape=self.input_shape))
+    #     model.add(TimeDistributed(Conv2D(32, (3,3),
+    #         kernel_initializer="he_normal", activation='relu')))
+    #     model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+
+    #     # model.add(TimeDistributed(Conv2D(64, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(Conv2D(64, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+
+    #     # model.add(TimeDistributed(Conv2D(128, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(Conv2D(128, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+
+    #     # model.add(TimeDistributed(Conv2D(256, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(Conv2D(256, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        
+    #     # model.add(TimeDistributed(Conv2D(512, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(Conv2D(512, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+
+    #     # model.add(TimeDistributed(Conv2D(1024, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(Conv2D(1024, (3,3),
+    #     #     padding='same', activation='relu')))
+    #     # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+
+    #     model.add(TimeDistributed(Flatten()))
+    #     model.add(Dense(128, activation='relu', name='fc1'))
+    #     model.add(Dropout(0.5))
+        
+    #     model.add(LSTM(32, return_sequences=True, dropout=0.5))
+    #     model.add(TimeDistributed(Dense(self.nclasses, activation='softmax')))
+
+    #     return model
+
     def lrcn(self):
-        """Build a CNN into RNN.
-        Starting version from:
-            https://github.com/udacity/self-driving-car/blob/master/
-                steering-models/community-models/chauffeur/models.py
-        Heavily influenced by VGG-16:
-            https://arxiv.org/abs/1409.1556
-        Also known as an LRCN:
-            https://arxiv.org/pdf/1411.4389.pdf
-        """
+        initialiser = 'glorot_uniform'
+        reg_lambda  = 0.001
 
+        # model = Sequential()
 
-        model = Sequential()
+        inputs = Input(shape=self.input_shape)
 
-        model.add(TimeDistributed(Conv2D(32, (7, 7), strides=(2, 2),
-            activation='relu', padding='same'), input_shape=self.input_shape))
-        model.add(TimeDistributed(Conv2D(32, (3,3),
-            kernel_initializer="he_normal", activation='relu')))
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # first (non-default) block
+        x = TimeDistributed(Conv2D(32, (7, 7), strides=(2, 2), padding='same',
+                                            kernel_initializer=initialiser, kernel_regularizer=l2(reg_lambda)))(inputs)
+        x = TimeDistributed(BatchNormalization())(x)
+        x = TimeDistributed(Activation('relu'))(x)
+        x = TimeDistributed(Conv2D(32, (3,3), kernel_initializer=initialiser, kernel_regularizer=l2(reg_lambda)))(x)
+        x = TimeDistributed(BatchNormalization())(x)
+        x = TimeDistributed(Activation('relu'))(x)
+        x = TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2)))(x)
 
-        # model.add(TimeDistributed(Conv2D(64, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(64, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # 2nd-5th (default) blocks
+        x = add_default_block(x, 64,  init=initialiser, reg_lambda=reg_lambda)
+        x = add_default_block(x, 128, init=initialiser, reg_lambda=reg_lambda)
+        x = add_default_block(x, 256, init=initialiser, reg_lambda=reg_lambda)
+        x = add_default_block(x, 512, init=initialiser, reg_lambda=reg_lambda)
 
-        # model.add(TimeDistributed(Conv2D(128, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(128, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
+        # LSTM output head
+        x = TimeDistributed(Flatten())(x)
+        x = LSTM(256, return_sequences=True, dropout=0.5)(x)
+        outputs = Dense(self.nclasses, activation='softmax')(x)
 
-        # model.add(TimeDistributed(Conv2D(256, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(256, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
-        
-        # model.add(TimeDistributed(Conv2D(512, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(512, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
-
-        # model.add(TimeDistributed(Conv2D(1024, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(Conv2D(1024, (3,3),
-        #     padding='same', activation='relu')))
-        # model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
-
-        model.add(TimeDistributed(Flatten()))
-        model.add(Dense(128, activation='relu', name='fc1'))
-        model.add(Dropout(0.5))
-        
-        model.add(LSTM(32, return_sequences=True, dropout=0.5))
-        model.add(TimeDistributed(Dense(self.nclasses, activation='softmax')))
+        model = Model(inputs = inputs, outputs = outputs)
 
         return model
 
@@ -333,8 +367,9 @@ class TestModels():
         return model
 
     def newResNet(self):
-        resnet = ResNet50(weights='imagenet', include_top=False)
-        # resnet = ResNet50(include_top=False)
+        """FINAL MODEL"""
+        # resnet = ResNet50(weights='imagenet', include_top=False)
+        resnet = ResNet50(include_top=False)
 
         # input_layer = Input(shape=(seq_len, 224, 224, 3))
         input_layer = Input(shape=self.input_shape)
@@ -343,10 +378,10 @@ class TestModels():
         pool = TimeDistributed(GlobalMaxPooling2D())(curr_layer)
         # curr_layer = Reshape(target_shape=(20, 2048))(curr_layer)
         drop = Dropout(0.25)(pool)
-        # lstm_out = LSTM(32, return_sequences=True)(drop)
+        lstm_out = LSTM(30, return_sequences=True)(drop)
 
-        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(drop)
-        model = Model(inputs = inputs, outputs = outputs)
+        outputs = TimeDistributed(Dense(self.nclasses, activation='softmax'))(lstm_out)
+        model = Model(inputs = input_layer, outputs = outputs)
         return model
 
     def lrcn_resnet(self):
@@ -480,4 +515,20 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
 
     x = layers.add([x, shortcut])
     x = TimeDistributed(Activation('relu'))(x)
+    return x
+
+def add_default_block(x, kernel_filters, init, reg_lambda):
+    # conv
+    x = TimeDistributed(Conv2D(kernel_filters, (3, 3), padding='same',
+                                        kernel_initializer=init, kernel_regularizer=l2(reg_lambda)))(x)
+    x = TimeDistributed(BatchNormalization())(x)
+    x = TimeDistributed(Activation('relu'))(x)
+    # conv
+    x = TimeDistributed(Conv2D(kernel_filters, (3, 3), padding='same',
+                                        kernel_initializer=init, kernel_regularizer=l2(reg_lambda)))(x)
+    x = TimeDistributed(BatchNormalization())(x)
+    x = TimeDistributed(Activation('relu'))(x)
+    # max pool
+    x = TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2)))(x)
+
     return x

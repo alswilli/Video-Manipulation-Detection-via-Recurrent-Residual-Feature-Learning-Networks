@@ -118,7 +118,70 @@ class DataSet():
         return [self.process_image(x) for x in frames]
 
 
-    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=config.DEFAULT_SEQ_LENGTH, folderName='Default', experimentType='standard'):
+    def applyManips(self, x, yseq):
+        """Takes in image sequences and corresponding labels, and applies
+            a manipulation corresponding to that label. 
+        """
+        new_x = []
+
+        compress_quality = np.random.randint(1,5)
+
+        pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
+        png = random.choice(pngs)
+
+        obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
+        area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size)) 
+
+        xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
+        ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
+        xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
+        ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
+        box = (xbox_start, ybox_start, xbox_end, ybox_end)
+
+        blur_radius = 50
+        for i in range(len(yseq)):
+            img = x[i]
+            label = yseq[i]
+
+            if label == 'black':
+                img = np.zeros(img.shape)
+            elif label == 'compressed':
+                img = (img*255).astype('uint8')
+                img = Image.fromarray(img)
+                buffer = BytesIO()
+                img.save(buffer, 'JPEG', quality = compress_quality)
+                img = (np.array(Image.open(buffer))/255.).astype(np.float32)
+                buffer.close()
+            elif label == 'insert':
+                img = (img*255).astype('uint8')
+                base_img = Image.fromarray(img)
+                base_img = base_img.convert('RGBA')
+                obj_img = Image.open(png)
+                obj_img = obj_img.convert('RGBA')
+                obj_img = obj_img.resize((obj_size, obj_size), Image.ANTIALIAS)
+                base_img.paste(obj_img, area, mask = obj_img)
+                base_img = base_img.convert('RGB')
+                img = ( np.array(base_img) / 255.).astype(np.float32)
+            elif label == 'blurred':
+                img = (img*255).astype('uint8')
+                img = Image.fromarray(img)
+                region = img.crop(box)
+                region = region.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                img.paste(region, box)
+                img = ( np.array(img) / 255.).astype(np.float32)
+            elif label == 'dropped':
+                pass
+            
+            
+            new_x.append(img)
+
+        # new_x = np.array(new_x)
+
+        return new_x
+
+
+
+    def dumpNumpyFiles(self, trainTest='all', seq_len_limit=config.DEFAULT_SEQ_LENGTH, folderName='Default', experiment='standard'):
         """
         Exports sequences to .npz files in data/sequences/npz. 
         
@@ -135,9 +198,9 @@ class DataSet():
         """
         if trainTest == 'all':
             print('Exporting Train Data...')
-            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit, folderName=folderName, experimentType=experimentType)
+            self.dumpNumpyFiles('train', seq_len_limit=seq_len_limit, folderName=folderName, experiment=experiment)
             print('Exporting Test Data')
-            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit, folderName=folderName, experimentType=experimentType)
+            self.dumpNumpyFiles('test', seq_len_limit=seq_len_limit, folderName=folderName, experiment=experiment)
         else:
             prelimPath = os.path.join(self.sequence_path, 'npz', folderName)
             if not os.path.isdir(prelimPath):
@@ -161,447 +224,62 @@ class DataSet():
                 
                 vidClass = row[1]
                 vidName = row[2]
-                #make random frames black
-                # aug_len = config.MANIPULATION_LENGTH
-
-                if experimentType == 'Standard':
-                    aug_len = config.MANIPULATION_LENGTH #Vary this length within the config.py file
-                    start = np.random.randint(len(sequence)-aug_len)
-                    if vidClass == 'black':
-                        for i in range(start, start+aug_len):
-                            #make black
-                            sequence[i]=np.zeros(sequence[i].shape)
-                    
-                    
-                    if vidClass == 'compressed':
-                        # quality = np.random.randint(5,25)
-                        quality = np.random.randint(1,5)
-                        # compress = iaa.JpegCompression(compression=(100, 100))
-                        for i in range(start, start+aug_len):
-                            # sequence[i] = sequence[i]*255.
-                            # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                            # sequence[i] = (sequence[i] / 255.).astype(np.float32)
-                            img = (sequence[i]*255.).astype('uint8')
-                            img = Image.fromarray(img)
-                            buffer = BytesIO()
-                            img.save(buffer, 'JPEG', quality = quality)
-                            sequence[i] = (np.array(Image.open(buffer))/255.).astype(np.float32)
-                            buffer.close()
-                            
-
-
-                    if vidClass == 'insert':
-                        pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
-                        png = random.choice(pngs)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
-
-                        area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-                            base_image = base_image.convert('RGBA')
-                            object_image = Image.open(png)
-                            object_image = object_image.convert('RGBA')
-
-                            
-                            object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
-
-                            
-                            base_image.paste(object_image, area, mask = object_image)
-                            base_image = base_image.convert('RGB')
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-                    if vidClass == 'dropped':
-                        #make sure we don't drop at the very beginning
-                        start = np.random.randint(5, len(sequence)-aug_len)
-                        sequence1 = sequence_orig[0:start]
-                        sequence2 = sequence_orig[start+aug_len:]
-                        sequence = sequence1 + sequence2
-                        sequence = sequence[:seq_len_limit]
-                    
-                    if vidClass == 'blurred':
-                        # box = (50, 100, 170, 200) #starting spots from (0,0)
-                        xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
-                        xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
-                        ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
-                        box = (xbox_start, ybox_start, xbox_end, ybox_end)
-                        # region = im.crop(box)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        # area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-
-                            region = base_image.crop(box)
-                            region = region.filter(ImageFilter.GaussianBlur(radius=50))
-                            base_image.paste(region, box)
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-
-                elif experimentType == 'Standard Multiple':
-                    # Define number of subsequences. (In what order do we define everything?)
-                    numSubs = config.NUMBER_OF_SUBSEQUENCES # We could do random later but I think one table per this number is what she wants
-
-                    # Find distance between subsequences (end and start, which must be less than the length between start to start as chosen below). 
-                    # Save average distance -> do we need to find this or do we base it on avg length?
-
-                    avgDist = config.AVG_DISTANCE_BETWEEN_SUBSEQUENCES # this will vary the start locations and max lengths!
-
-                    # Find length of subsequences (and save average length if random)
-
-                    avgLength = config.AVG_LENGTH_OF_SUBSEQUENCES
-
-                    # Find start locations
-                    a = np.empty(len(sequence))
-                    b = np.arange(0, len(sequence), 1)
-                    ind = np.arange(len(a))
-                    np.put(a, ind, b) # a is now filled with numbers 0 -> len(sequence) 
-
-                    np.random.shuffle(a) # a is now randomly shuffled -> These range numbers will have to be limited depending on length of subsequences
-                    startLocs = a[0:numSubs] 
-
-                    
-
-                    
-
-                    
-
-
-
-
-
-
-
-                    aug_len = config.MANIPULATION_LENGTH #can do fixed but can also do random length
-                    start = np.random.randint(len(sequence)-aug_len)
-                    if vidClass == 'black':
-                        for i in range(start, start+aug_len):
-                            #make black
-                            sequence[i]=np.zeros(sequence[i].shape)
-                    
-                    
-                    if vidClass == 'compressed':
-                        # quality = np.random.randint(5,25)
-                        quality = np.random.randint(1,5)
-                        # compress = iaa.JpegCompression(compression=(100, 100))
-                        for i in range(start, start+aug_len):
-                            # sequence[i] = sequence[i]*255.
-                            # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                            # sequence[i] = (sequence[i] / 255.).astype(np.float32)
-                            img = (sequence[i]*255.).astype('uint8')
-                            img = Image.fromarray(img)
-                            buffer = BytesIO()
-                            img.save(buffer, 'JPEG', quality = quality)
-                            sequence[i] = (np.array(Image.open(buffer))/255.).astype(np.float32)
-                            buffer.close()
-                            
-
-
-                    if vidClass == 'insert':
-                        pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
-                        png = random.choice(pngs)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
-
-                        area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-                            base_image = base_image.convert('RGBA')
-                            object_image = Image.open(png)
-                            object_image = object_image.convert('RGBA')
-
-                            
-                            object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
-
-                            
-                            base_image.paste(object_image, area, mask = object_image)
-                            base_image = base_image.convert('RGB')
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-                    if vidClass == 'dropped':
-                        #make sure we don't drop at the very beginning
-                        start = np.random.randint(5, len(sequence)-aug_len)
-                        sequence1 = sequence_orig[0:start]
-                        sequence2 = sequence_orig[start+aug_len:]
-                        sequence = sequence1 + sequence2
-                        sequence = sequence[:seq_len_limit]
-                    
-                    if vidClass == 'blurred':
-                        # box = (50, 100, 170, 200) #starting spots from (0,0)
-                        xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
-                        xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
-                        ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
-                        box = (xbox_start, ybox_start, xbox_end, ybox_end)
-                        # region = im.crop(box)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        # area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-
-                            region = base_image.crop(box)
-                            region = region.filter(ImageFilter.GaussianBlur(radius=50))
-                            base_image.paste(region, box)
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-                
-                elif experimentType == 'Deluxe':
-                    aug_len = config.MANIPULATION_LENGTH
-                    start = np.random.randint(len(sequence)-aug_len)
-                    if vidClass == 'black':
-                        for i in range(start, start+aug_len):
-                            #make black
-                            sequence[i]=np.zeros(sequence[i].shape)
-                    
-                    
-                    if vidClass == 'compressed':
-                        # quality = np.random.randint(5,25)
-                        quality = np.random.randint(1,5)
-                        # compress = iaa.JpegCompression(compression=(100, 100))
-                        for i in range(start, start+aug_len):
-                            # sequence[i] = sequence[i]*255.
-                            # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                            # sequence[i] = (sequence[i] / 255.).astype(np.float32)
-                            img = (sequence[i]*255.).astype('uint8')
-                            img = Image.fromarray(img)
-                            buffer = BytesIO()
-                            img.save(buffer, 'JPEG', quality = quality)
-                            sequence[i] = (np.array(Image.open(buffer))/255.).astype(np.float32)
-                            buffer.close()
-                            
-
-
-                    if vidClass == 'insert':
-                        pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
-                        png = random.choice(pngs)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
-
-                        area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-                            base_image = base_image.convert('RGBA')
-                            object_image = Image.open(png)
-                            object_image = object_image.convert('RGBA')
-
-                            
-                            object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
-
-                            
-                            base_image.paste(object_image, area, mask = object_image)
-                            base_image = base_image.convert('RGB')
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-                    if vidClass == 'dropped':
-                        #make sure we don't drop at the very beginning
-                        start = np.random.randint(5, len(sequence)-aug_len)
-                        sequence1 = sequence_orig[0:start]
-                        sequence2 = sequence_orig[start+aug_len:]
-                        sequence = sequence1 + sequence2
-                        sequence = sequence[:seq_len_limit]
-                    
-                    if vidClass == 'blurred':
-                        # box = (50, 100, 170, 200) #starting spots from (0,0)
-                        xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
-                        xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
-                        ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
-                        box = (xbox_start, ybox_start, xbox_end, ybox_end)
-                        # region = im.crop(box)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        # area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-
-                            region = base_image.crop(box)
-                            region = region.filter(ImageFilter.GaussianBlur(radius=50))
-                            base_image.paste(region, box)
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-
-                elif experimentType == 'Deluxe Multiple':
-                    aug_len = config.MANIPULATION_LENGTH
-                    start = np.random.randint(len(sequence)-aug_len)
-                    if vidClass == 'black':
-                        for i in range(start, start+aug_len):
-                            #make black
-                            sequence[i]=np.zeros(sequence[i].shape)
-                    
-                    
-                    if vidClass == 'compressed':
-                        # quality = np.random.randint(5,25)
-                        quality = np.random.randint(1,5)
-                        # compress = iaa.JpegCompression(compression=(100, 100))
-                        for i in range(start, start+aug_len):
-                            # sequence[i] = sequence[i]*255.
-                            # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                            # sequence[i] = (sequence[i] / 255.).astype(np.float32)
-                            img = (sequence[i]*255.).astype('uint8')
-                            img = Image.fromarray(img)
-                            buffer = BytesIO()
-                            img.save(buffer, 'JPEG', quality = quality)
-                            sequence[i] = (np.array(Image.open(buffer))/255.).astype(np.float32)
-                            buffer.close()
-                            
-
-
-                    if vidClass == 'insert':
-                        pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
-                        png = random.choice(pngs)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
-
-                        area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-                            base_image = base_image.convert('RGBA')
-                            object_image = Image.open(png)
-                            object_image = object_image.convert('RGBA')
-
-                            
-                            object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
-
-                            
-                            base_image.paste(object_image, area, mask = object_image)
-                            base_image = base_image.convert('RGB')
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-                    if vidClass == 'dropped':
-                        #make sure we don't drop at the very beginning
-                        start = np.random.randint(5, len(sequence)-aug_len)
-                        sequence1 = sequence_orig[0:start]
-                        sequence2 = sequence_orig[start+aug_len:]
-                        sequence = sequence1 + sequence2
-                        sequence = sequence[:seq_len_limit]
-                    
-                    if vidClass == 'blurred':
-                        # box = (50, 100, 170, 200) #starting spots from (0,0)
-                        xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
-                        xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
-                        ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
-                        box = (xbox_start, ybox_start, xbox_end, ybox_end)
-                        # region = im.crop(box)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        # area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-
-                            region = base_image.crop(box)
-                            region = region.filter(ImageFilter.GaussianBlur(radius=50))
-                            base_image.paste(region, box)
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-
-                elif experimentType == 'Deluxe Multiple Mixed':
-                    aug_len = config.MANIPULATION_LENGTH
-                    start = np.random.randint(len(sequence)-aug_len)
-                    if vidClass == 'black':
-                        for i in range(start, start+aug_len):
-                            #make black
-                            sequence[i]=np.zeros(sequence[i].shape)
-                    
-                    
-                    if vidClass == 'compressed':
-                        # quality = np.random.randint(5,25)
-                        quality = np.random.randint(1,5)
-                        # compress = iaa.JpegCompression(compression=(100, 100))
-                        for i in range(start, start+aug_len):
-                            # sequence[i] = sequence[i]*255.
-                            # sequence[i] = compress.augment_image(sequence[i].astype('uint8'))
-                            # sequence[i] = (sequence[i] / 255.).astype(np.float32)
-                            img = (sequence[i]*255.).astype('uint8')
-                            img = Image.fromarray(img)
-                            buffer = BytesIO()
-                            img.save(buffer, 'JPEG', quality = quality)
-                            sequence[i] = (np.array(Image.open(buffer))/255.).astype(np.float32)
-                            buffer.close()
-                            
-
-
-                    if vidClass == 'insert':
-                        pngs = glob.glob(os.path.join('data', 'pngs', '*.png'))
-                        png = random.choice(pngs)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        obj_size = new_size = np.random.randint(int(0.5*config.IMG_WIDTH), int(0.9*config.IMG_WIDTH))
-
-                        area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-                            base_image = base_image.convert('RGBA')
-                            object_image = Image.open(png)
-                            object_image = object_image.convert('RGBA')
-
-                            
-                            object_image = object_image.resize((obj_size, obj_size), Image.ANTIALIAS)
-
-                            
-                            base_image.paste(object_image, area, mask = object_image)
-                            base_image = base_image.convert('RGB')
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-                    if vidClass == 'dropped':
-                        #make sure we don't drop at the very beginning
-                        start = np.random.randint(5, len(sequence)-aug_len)
-                        sequence1 = sequence_orig[0:start]
-                        sequence2 = sequence_orig[start+aug_len:]
-                        sequence = sequence1 + sequence2
-                        sequence = sequence[:seq_len_limit]
-                    
-                    if vidClass == 'blurred':
-                        # box = (50, 100, 170, 200) #starting spots from (0,0)
-                        xbox_start = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        ybox_start = np.random.randint(25, int(0.5*config.IMG_HEIGHT))
-                        xbox_end = np.random.randint(xbox_start+int(0.2*config.IMG_WIDTH), xbox_start+int(0.5*config.IMG_WIDTH))
-                        ybox_end = np.random.randint(ybox_start+int(0.2*config.IMG_HEIGHT), ybox_start+int(0.5*config.IMG_HEIGHT))
-                        box = (xbox_start, ybox_start, xbox_end, ybox_end)
-                        # region = im.crop(box)
-                        # obj_size = new_size = np.random.randint(25, int(0.5*config.IMG_WIDTH))
-                        # area = (np.random.randint(config.IMG_WIDTH-new_size), np.random.randint(config.IMG_HEIGHT-new_size))  
-                        for i in range(start, start+aug_len):
-                            
-                            
-                            sequence[i] = (sequence[i]*255).astype('uint8')
-                            base_image = Image.fromarray(sequence[i])
-
-                            region = base_image.crop(box)
-                            region = region.filter(ImageFilter.GaussianBlur(radius=50))
-                            base_image.paste(region, box)
-
-                            sequence[i] = ( np.array(base_image) / 255.).astype(np.float32)
-
                 y_seq = ['normal']*len(sequence)
-                if not (vidClass == 'dropped'):
+
+                num_blocks = config.NUM_BLOCKS
+                block_size = config.BLOCK_SIZE
+                block_spacing = config.BLOCK_SPACING
+                consumed = num_blocks*block_size + (num_blocks-1)*block_spacing
+                max_start = len(sequence)-consumed
+                start = max_start if max_start == 0 else np.random.randint(max_start)
+                if max_start < 0:
+                    raise Exception('Block size/spacing incompatible: Requires {0} frames, currently have {1}.'.format(consumed, len(sequence))) 
+                
+                if experiment == 'standard':
+                    aug_len = config.MANIPULATION_LENGTH
+                    start = np.random.randint(len(sequence)-aug_len)
                     y_seq[start:start+aug_len]=[vidClass]*aug_len
-                else:
-                    y_seq[start]=vidClass
+                elif experiment == '2':
+                    for i in range(num_blocks):
+                        y_seq[start:start+block_size]=[vidClass]*block_size
+                        start = start + block_size + block_spacing
+                elif experiment == '3':   
+                    valid_classes = self.classes.copy()
+                    valid_classes.remove('normal')
+
+                    if num_blocks > len(valid_classes):
+                        raise Exception('Too many blocks ({0}), for {1} non-normal classes'.format(num_blocks, len(valid_classes)))
+
+                    for i in range(num_blocks):
+                        manip_class = random.choice(valid_classes)
+                        valid_classes.remove(manip_class)
+                        y_seq[start:start+block_size]=[manip_class]*block_size
+                        start = start + block_size + block_spacing                    
+                elif experiment == '4':
+                    valid_classes = self.classes.copy()
+                    valid_classes.remove('normal')
+                    random.shuffle(valid_classes)
+                    valid_classes = valid_classes[:config.NUM_MANIPS]
+
+                    aug_len = config.MANIPULATION_LENGTH
+                    start = np.random.randint(len(sequence)-aug_len)
+
+                    for i in range(start, start+aug_len):
+                        y_seq[i]=random.choice(valid_classes)
+                elif experiment == '5':
+                    valid_classes = self.classes.copy()
+                    valid_classes.remove('normal')
+
+                    random.shuffle(valid_classes)
+                    valid_classes = valid_classes[:config.NUM_MANIPS]
+                    for i in range(num_blocks):
+                        for k in range(start, start+block_size):
+                            y_seq[k]=random.choice(valid_classes)
+                        
+                        start = start + block_size + block_spacing
+
+                
+                sequence = self.applyManips(sequence, y_seq)
                 y_seq = np.array([self.one_hot(k) for k in y_seq])
 
                 np.savez_compressed(os.path.join(outPath, vidName + '-' + vidClass + '.npz'), x=np.array(sequence), y=self.one_hot(vidClass), yseq=y_seq)
@@ -643,6 +321,11 @@ class DataGenerator(Sequence):
                     normed = np.array([k-mean for k in seq])
                     seq = np.interp(normed, (normed.min(), normed.max()), (0,1))
                     # seq = normed.clip(min=0)
+                if self.filter == 'subtract':
+                    seq = np.array(seq).squeeze()
+                    for i in range(len(seq)-1, 0, -1):
+                        seq[i] = seq[i]-seq[i-1]
+                    seq = np.interp(seq, (seq.min(), seq.max()), (0,1))
                 
                 x.append(seq)
                 y.append(sequence['yseq'])
